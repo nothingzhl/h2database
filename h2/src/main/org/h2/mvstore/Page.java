@@ -39,7 +39,7 @@ import org.h2.util.Utils;
  * leaf: values (one for each key)
  * node: children (1 more than keys)
  */
-public abstract class Page implements Cloneable
+public abstract class Page implements Cloneable, RootReference.VisitablePages
 {
     /**
      * Map this page belongs to
@@ -933,6 +933,18 @@ public abstract class Page implements Cloneable
      */
     public abstract void removeAllRecursive();
 
+    @Override
+    public int getPageCount() {
+        return isSaved() ? 1 : 0;
+    }
+
+    @Override
+    public void visitPages(RootReference.PageVisitor visitor) {
+        if (isSaved()) {
+            visitor.visit(pos);
+        }
+    }
+
     /**
      * Create array for keys storage.
      *
@@ -1033,10 +1045,10 @@ public abstract class Page implements Cloneable
 
         @Override
         public String toString() {
-            return "Cnt:" + count + ", pos:" + DataUtils.getPageChunkId(pos) +
-                    "-" + DataUtils.getPageOffset(pos) + ":" + DataUtils.getPageMaxLength(pos) +
+            return "Cnt:" + count + ", pos:" + (pos == 0 ? "0" : DataUtils.getPageChunkId(pos) +
+                    "-" + DataUtils.getPageOffset(pos) + ":" + DataUtils.getPageMaxLength(pos)) +
                     ((page == null ? DataUtils.getPageType(pos) == 0 : page.isLeaf()) ? " leaf" : " node") +
-                    ", " + page;
+                    ", page:{" + page + "}";
         }
     }
 
@@ -1319,6 +1331,41 @@ public abstract class Page implements Cloneable
         protected int calculateMemory() {
             return super.calculateMemory() + PAGE_NODE_MEMORY +
                         getRawChildPageCount() * (MEMORY_POINTER + PAGE_MEMORY_CHILD);
+        }
+
+        @Override
+        public int getPageCount() {
+            int count = super.getPageCount();
+            if (count > 0) {
+                int len = getRawChildPageCount();
+                for (int i = 0; i < len; i++) {
+                    long pagePos = getChildPagePos(i);
+                    if (DataUtils.isPageSaved(pagePos)) {
+                        if (DataUtils.isLeafPosition(pagePos)) {
+                            ++count;
+                        } else {
+                            count += getChildPage(i).getPageCount();
+                        }
+                    }
+                }
+            }
+            return count;
+        }
+
+        @Override
+        public void visitPages(RootReference.PageVisitor visitor) {
+            super.visitPages(visitor);
+            int len = getRawChildPageCount();
+            for (int i = 0; i < len; i++) {
+                long pagePos = getChildPagePos(i);
+                if (DataUtils.isPageSaved(pagePos)) {
+                    if (DataUtils.isLeafPosition(pagePos)) {
+                        visitor.visit(pagePos);
+                    } else {
+                        getChildPage(i).visitPages(visitor);
+                    }
+                }
+            }
         }
 
         @Override

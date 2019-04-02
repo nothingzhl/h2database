@@ -432,7 +432,6 @@ public class TestMVStore extends TestBase {
                 fileName(fileName).
                 open();
         s.setRetentionTime(Integer.MAX_VALUE);
-        s.setFreeUnusedOnBackgroundThread(false);
         Map<String, Object> header = s.getStoreHeader();
         assertEquals("1", header.get("format").toString());
         header.put("formatRead", "1");
@@ -754,7 +753,6 @@ public class TestMVStore extends TestBase {
         MVMap<Integer, Integer> m;
         s = openStore(fileName);
         s.setRetentionTime(Integer.MAX_VALUE);
-        s.setFreeUnusedOnBackgroundThread(false);
         m = s.openMap("test");
         m.put(1, 1);
         Map<String, Object> header = s.getStoreHeader();
@@ -899,7 +897,6 @@ public class TestMVStore extends TestBase {
         FileUtils.delete(fileName);
         MVStore s = openStore(fileName);
         s.setRetentionTime(Integer.MAX_VALUE);
-        s.setFreeUnusedOnBackgroundThread(false);
         long time = System.currentTimeMillis();
         Map<String, Object> m = s.getStoreHeader();
         assertEquals("1", m.get("format").toString());
@@ -993,8 +990,13 @@ public class TestMVStore extends TestBase {
             int bad = (old + 1) & 15;
             buff.put(idx + "fletcher:".length(),
                     (byte) Character.forDigit(bad, 16));
-            buff.rewind();
-            fc.write(buff, i);
+
+            // now intentionally corrupt first or both headers
+            // note that headers may be overwritten upon successfull opening
+            for (int b = 0; b <= i; b += blockSize) {
+                buff.rewind();
+                fc.write(buff, b);
+            }
             fc.close();
 
             if (i == 0) {
@@ -1758,7 +1760,6 @@ public class TestMVStore extends TestBase {
 
         s = openStore(fileName);
         s.setRetentionTime(0);
-        s.setFreeUnusedOnBackgroundThread(false);
 
         Map<String, String> meta = s.getMetaMap();
         int chunkCount1 = 0;
@@ -1854,7 +1855,6 @@ public class TestMVStore extends TestBase {
             sleep(2);
             MVStore s = openStore(fileName);
             s.setRetentionTime(0);
-            s.setFreeUnusedOnBackgroundThread(false);
             MVMap<Integer, String> m = s.openMap("data");
             for (int i = 0; i < 10; i++) {
                 m.put(i, "Hello");

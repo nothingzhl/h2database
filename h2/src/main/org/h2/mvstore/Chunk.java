@@ -210,7 +210,8 @@ public class Chunk {
      *
      * @return the fill rate
      */
-    public int getFillRate() {
+    int getFillRate() {
+        assert maxLenLive <= maxLen : maxLenLive + " > " + maxLen;
         if (maxLenLive <= 0) {
             return 0;
         } else if (maxLenLive == maxLen) {
@@ -278,10 +279,13 @@ public class Chunk {
         return buff.toString().getBytes(StandardCharsets.ISO_8859_1);
     }
 
+    boolean isSaved() {
+        return block != Long.MAX_VALUE;
+    }
+
     @Override
     public String toString() {
         return asString();
     }
-
 }
 

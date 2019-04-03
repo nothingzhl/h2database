@@ -56,8 +56,8 @@ public class TestMVTempResult extends TestBase {
             Statement s = c.createStatement();
             s.execute("CREATE TABLE TEST(I BIGINT, E ENUM('a', 'b'))" //
                     + " AS SELECT X, 'a' FROM SYSTEM_RANGE(1, " + ROWS + ')');
-            long startTimeNs = System.nanoTime();
-            long initialGCTime = Utils.getGarbageCollectionTime();
+//            long startTimeNs = System.nanoTime();
+//            long initialGCTime = Utils.getGarbageCollectionTime();
             try (ResultSet rs = s.executeQuery("SELECT I, E FROM TEST ORDER BY I DESC")) {
                 for (int i = ROWS; i > 0; i--) {
                     assertTrue(rs.next());

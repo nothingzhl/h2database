@@ -192,7 +192,7 @@ public abstract class Page implements Cloneable, RootReference.VisitablePages
     }
 
     private void initMemoryAccount(int memoryCount) {
-        if(map.store.getFileStore() == null) {
+        if(!map.isPersistent()) {
             memory = IN_MEMORY;
         } else if (memoryCount == 0) {
             recalculateMemory();
@@ -934,11 +934,6 @@ public abstract class Page implements Cloneable, RootReference.VisitablePages
     public abstract void removeAllRecursive();
 
     @Override
-    public int getPageCount() {
-        return isSaved() ? 1 : 0;
-    }
-
-    @Override
     public void visitPages(RootReference.PageVisitor visitor) {
         if (isSaved()) {
             visitor.visit(pos);
@@ -1331,25 +1326,6 @@ public abstract class Page implements Cloneable, RootReference.VisitablePages
         protected int calculateMemory() {
             return super.calculateMemory() + PAGE_NODE_MEMORY +
                         getRawChildPageCount() * (MEMORY_POINTER + PAGE_MEMORY_CHILD);
-        }
-
-        @Override
-        public int getPageCount() {
-            int count = super.getPageCount();
-            if (count > 0) {
-                int len = getRawChildPageCount();
-                for (int i = 0; i < len; i++) {
-                    long pagePos = getChildPagePos(i);
-                    if (DataUtils.isPageSaved(pagePos)) {
-                        if (DataUtils.isLeafPosition(pagePos)) {
-                            ++count;
-                        } else {
-                            count += getChildPage(i).getPageCount();
-                        }
-                    }
-                }
-            }
-            return count;
         }
 
         @Override

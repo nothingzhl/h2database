@@ -1303,7 +1303,6 @@ public class MVStore implements AutoCloseable {
         assert metaRootReference.version == version : metaRootReference.version + " != " + version;
         metaChanged = false;
         onVersionChange(version);
-        dropUnusedChunks();
 
         Page metaRoot = metaRootReference.root;
         metaRoot.writeUnsavedRecursive(c, buff);
@@ -1391,6 +1390,7 @@ public class MVStore implements AutoCloseable {
                 - currentUnsavedPageCount);
 
         lastStoredVersion = storeVersion;
+        dropUnusedChunks();
     }
 
     /**
@@ -1987,25 +1987,25 @@ public class MVStore implements AutoCloseable {
     public boolean compact(int targetFillRate, int write) {
         if (reuseSpace) {
             checkOpen();
-            ArrayList<Chunk> old = findOldChunks(targetFillRate, write);
-            if (old != null && !old.isEmpty()) {
-                // We can't wait forever for the lock here,
-                // because if called from the background thread,
-                // it might go into deadlock with concurrent database closure
-                // and attempt to stop this thread.
-                try {
-                    if (!storeLock.isHeldByCurrentThread() &&
-                            storeLock.tryLock(10, TimeUnit.MILLISECONDS)) {
-                        try {
+            // We can't wait forever for the lock here,
+            // because if called from the background thread,
+            // it might go into deadlock with concurrent database closure
+            // and attempt to stop this thread.
+            try {
+                if (!storeLock.isHeldByCurrentThread() &&
+                        storeLock.tryLock(10, TimeUnit.MILLISECONDS)) {
+                    try {
+                        ArrayList<Chunk> old = findOldChunks(targetFillRate, write);
+                        if (old != null && !old.isEmpty()) {
                             compactRewrite(old);
                             return true;
-                        } finally {
-                            storeLock.unlock();
                         }
+                    } finally {
+                        storeLock.unlock();
                     }
-                } catch (InterruptedException e) {
-                    throw new RuntimeException(e);
                 }
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
             }
         }
         return false;
@@ -2131,9 +2131,7 @@ public class MVStore implements AutoCloseable {
             }
         }
         meta.rewrite(set);
-        dropUnusedChunks();
-//        freeUnusedChunks();
-        commit();
+        store();
     }
 
     /**
@@ -2176,13 +2174,11 @@ public class MVStore implements AutoCloseable {
     }
 
     boolean accountForRemovedPages(RootReference.RemovalInfoNode removalInfo, final long version) {
-        final Set<Long> positions = new HashSet<>();
         final Set<Chunk> modified = new HashSet<>();
         RootReference.PageVisitor visitor = new RootReference.PageVisitor() {
             long time;
             @Override
             public void visit(long pagePos) {
-                assert positions.add(pagePos) : pagePos;
                 assert DataUtils.isPageSaved(pagePos);
                 if (DataUtils.isPageSaved(pagePos)) {
                     int chunkId = DataUtils.getPageChunkId(pagePos);
@@ -2688,9 +2684,8 @@ public class MVStore implements AutoCloseable {
                     "Removing the meta map is not allowed");
             map.close();
             RootReference rootReference = map.clearIt();
-            RootReference.RemovalInfoNode removalInfo = rootReference.removalInfo;
+            RootReference.RemovalInfoNode removalInfo = rootReference.extractRemovalInfo();
             if (map.isPersistent() && removalInfo != null) {
-                rootReference.removalInfo = null;
                 accountForRemovedPages(removalInfo, currentVersion);
             }
 

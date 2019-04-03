@@ -47,7 +47,7 @@ public final class RootReference
     /**
      * Head of the linked list of RootReference.VisitablePages
      */
-    RemovalInfoNode removalInfo;
+    private RemovalInfoNode removalInfo;
 
 
     // This one is used to set root initially and for r/o snapshots
@@ -129,6 +129,17 @@ public final class RootReference
         return new RootReference(this, page, appendCounter, lockedForUpdate, removedPages);
     }
 
+
+    boolean hasRemovalInfo() {
+        return removalInfo != null;
+    }
+
+    RemovalInfoNode extractRemovalInfo() {
+        RemovalInfoNode result = removalInfo;
+        removalInfo = null;
+        return result;
+    }
+
     int getAppendCounter() {
         return appendCounter & 0xff;
     }
@@ -147,11 +158,7 @@ public final class RootReference
         void visit(long pagePos);
     }
 
-    /**
-     * Representation of a structure containi
-     */
     public  interface VisitablePages {
-        int getPageCount();
         void visitPages(PageVisitor visitor);
     }
 

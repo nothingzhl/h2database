@@ -162,24 +162,12 @@ public final class MVRTreeMap<V> extends MVMap<SpatialKey, V> {
                         Page.PageReference.EMPTY
                 };
                 p = Page.createNode(this, keys, children, totalCount, 0);
-                if(store.getFileStore() != null) {
+                if(isPersistent()) {
                     store.registerUnsavedPage(p.getMemory());
                 }
             }
             RootReference.VisitablePages pagesToBeRemoved = removedPages == null ? null :
                     new RootReference.VisitablePages() {
-                        @Override
-                        public int getPageCount() {
-                            int count = 0;
-                            for (Page page : removedPages) {
-                                long pagePos = page.getPos();
-                                if (DataUtils.isPageSaved(pagePos)) {
-                                    ++count;
-                                }
-                            }
-                            return count;
-                        }
-
                         @Override
                         public void visitPages(RootReference.PageVisitor visitor) {
                             for (Page page : removedPages) {
@@ -453,8 +441,7 @@ public final class MVRTreeMap<V> extends MVMap<SpatialKey, V> {
 
     private Page newPage(boolean leaf) {
         Page page = leaf ? createEmptyLeaf() : createEmptyNode();
-        if(store.getFileStore() != null)
-        {
+        if(isPersistent()) {
             store.registerUnsavedPage(page.getMemory());
         }
         return page;

@@ -37,17 +37,25 @@ public class CursorPos implements RootReference.VisitablePages
         this.parent = parent;
     }
 
-    @Override
-    public int getPageCount() {
-        int count = 0;
-        CursorPos cursorPos = this;
-        do {
-            if (cursorPos.page.isSaved()) {
-                ++count;
+    CursorPos filterUnsavedPages(MVMap.IntValueHolder unsavedMemoryHolder) {
+        CursorPos head = this;
+        while (head != null && !head.page.isSaved()) {
+            unsavedMemoryHolder.value -= head.page.getMemory();
+            head = head.parent;
+        }
+        if (head != null) {
+            CursorPos tail = head;
+            CursorPos next;
+            while ((next = tail.parent) != null) {
+                if (!next.page.isSaved()) {
+                    tail.parent = next.parent;
+                    unsavedMemoryHolder.value -= next.page.getMemory();
+                } else {
+                    tail = next;
+                }
             }
-            cursorPos = cursorPos.parent;
-        } while (cursorPos != null);
-        return count;
+        }
+        return head;
     }
 
     @Override

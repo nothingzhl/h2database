@@ -1107,24 +1107,27 @@ public class MVMap<K, V> extends AbstractMap<K, V>
 
             RootReference previous = rootReference;
             RootReference tmp;
-            while ((tmp = previous.previous) != null && tmp.root == rootReference.root && previous.removalInfo == null) {
+            while ((tmp = previous.previous) != null && tmp.root == rootReference.root && !previous.hasRemovalInfo()) {
                 previous = tmp;
             }
             RootReference updatedRootReference = rootReference.updateVersion(previous, writeVersion, ++attempt);
             if(root.compareAndSet(rootReference, updatedRootReference)) {
-                RootReference.RemovalInfoNode removalInfo = rootReference.removalInfo;
-                if (isPersistent() && removalInfo != null) {
-                    rootReference.removalInfo = null;
-                    while (store.accountForRemovedPages(removalInfo, writeVersion) && this == store.getMetaMap()) {
+                RootReference.RemovalInfoNode removalInfo = rootReference.extractRemovalInfo();
+                if (isPersistent()) {
+                    while (removalInfo != null && store.accountForRemovedPages(removalInfo, writeVersion) && this == store.getMetaMap()) {
                         attempt = 0;
                         while(true) {
                             rootReference = flushAndGetRoot();
-                            removalInfo = rootReference.removalInfo;
-                            if (removalInfo != null) {
+                            if (rootReference.hasRemovalInfo()) {
                                 updatedRootReference = rootReference.updateVersion(updatedRootReference.previous, writeVersion, ++attempt);
                                 if(root.compareAndSet(rootReference, updatedRootReference)) {
+                                    removalInfo = rootReference.extractRemovalInfo();
                                     break;
                                 }
+                            } else {
+                                removalInfo = null;
+                                updatedRootReference = rootReference;
+                                break;
                             }
                         }
                     }
@@ -1294,15 +1297,12 @@ public class MVMap<K, V> extends AbstractMap<K, V>
                 }
                 p = replacePage(pos, p, unsavedMemoryHolder);
 
+                tip = isPersistent() && tip != null ? tip.filterUnsavedPages(unsavedMemoryHolder) : null;
                 RootReference updatedRootReference = rootReference.updatePageAndLockedStatus(p, remainingBuffer,
-                                                                        lockedForUpdate, isPersistent() ? tip : null);
+                                                                        lockedForUpdate, tip);
                 if (root.compareAndSet(rootReference, updatedRootReference)) {
                     lockedRootReference = null;
-                    while (tip != null) {
-                        tip.page.removePage();
-                        tip = tip.parent;
-                    }
-                    if (store.getFileStore() != null) {
+                    if (isPersistent()) {
                         store.registerUnsavedPage(unsavedMemoryHolder.value);
                     }
                     assert lockedForUpdate || updatedRootReference.getAppendCounter() == 0;
@@ -1320,7 +1320,7 @@ public class MVMap<K, V> extends AbstractMap<K, V>
     }
 
     private static Page replacePage(CursorPos path, Page replacement, IntValueHolder unsavedMemoryHolder) {
-        int unsavedMemory = replacement.getMemory();
+        int unsavedMemory = replacement.isSaved() ? 0 : replacement.getMemory();
         while (path != null) {
             Page parent = path.page;
             // condition below should always be true, but older versions (up to 1.4.197)
@@ -1796,7 +1796,8 @@ public class MVMap<K, V> extends AbstractMap<K, V>
                 }
                 rootPage = replacePage(pos, p, unsavedMemoryHolder);
                 if (lockedRootReference == null) {
-                    if (!updateRoot(rootReference, rootPage, attempt, isPersistent() ? tip : null)) {
+                    tip = isPersistent() ? tip.filterUnsavedPages(unsavedMemoryHolder) : null;
+                    if (!updateRoot(rootReference, rootPage, attempt, tip)) {
                         decisionMaker.reset();
                         continue;
                     } else {
@@ -1806,11 +1807,7 @@ public class MVMap<K, V> extends AbstractMap<K, V>
                     unlockRoot(rootPage, isPersistent() ? tip : null);
                     lockedRootReference = null;
                 }
-                while (tip != null) {
-                    tip.page.removePage();
-                    tip = tip.parent;
-                }
-                if (store.getFileStore() != null) {
+                if (isPersistent()) {
                     store.registerUnsavedPage(unsavedMemoryHolder.value);
                 }
                 return result;
@@ -1962,7 +1959,7 @@ public class MVMap<K, V> extends AbstractMap<K, V>
         }
     }
 
-    private static final class IntValueHolder {
+    static final class IntValueHolder {
         int value;
 
         IntValueHolder() {}

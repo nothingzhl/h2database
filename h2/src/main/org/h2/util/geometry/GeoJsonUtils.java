@@ -1,6 +1,6 @@
 /*
- * Copyright 2004-2019 H2 Group. Multiple-Licensed under the MPL 2.0,
- * and the EPL 1.0 (http://h2database.com/html/license.html).
+ * Copyright 2004-2023 H2 Group. Multiple-Licensed under the MPL 2.0,
+ * and the EPL 1.0 (https://h2database.com/html/license.html).
  * Initial Developer: H2 Group
  */
 package org.h2.util.geometry;
@@ -28,12 +28,12 @@ import org.h2.util.geometry.EWKBUtils.EWKBTarget;
 import org.h2.util.geometry.GeometryUtils.DimensionSystemTarget;
 import org.h2.util.geometry.GeometryUtils.Target;
 import org.h2.util.json.JSONArray;
+import org.h2.util.json.JSONByteArrayTarget;
+import org.h2.util.json.JSONBytesSource;
 import org.h2.util.json.JSONNull;
 import org.h2.util.json.JSONNumber;
 import org.h2.util.json.JSONObject;
 import org.h2.util.json.JSONString;
-import org.h2.util.json.JSONStringSource;
-import org.h2.util.json.JSONStringTarget;
 import org.h2.util.json.JSONValue;
 import org.h2.util.json.JSONValueTarget;
 
@@ -61,7 +61,7 @@ public final class GeoJsonUtils {
      */
     public static final class GeoJsonTarget extends Target {
 
-        private final JSONStringTarget output;
+        private final JSONByteArrayTarget output;
 
         private final int dimensionSystem;
 
@@ -77,7 +77,7 @@ public final class GeoJsonUtils {
          * @param dimensionSystem
          *            dimension system to use
          */
-        public GeoJsonTarget(JSONStringTarget output, int dimensionSystem) {
+        public GeoJsonTarget(JSONByteArrayTarget output, int dimensionSystem) {
             if (dimensionSystem == DIMENSION_SYSTEM_XYM) {
                 throw DbException.get(ErrorCode.DATA_CONVERSION_ERROR_1,
                         "M (XYM) dimension system is not supported in GeoJson");
@@ -204,9 +204,7 @@ public final class GeoJsonUtils {
         }
 
         private void writeDouble(double v) {
-            BigDecimal d = BigDecimal.valueOf(GeometryUtils.checkFinite(v));
-            // stripTrailingZeros() does not work with 0.0 on Java 7
-            output.valueNumber(d.signum() != 0 ? d.stripTrailingZeros() : BigDecimal.ZERO);
+            output.valueNumber(BigDecimal.valueOf(GeometryUtils.checkFinite(v)).stripTrailingZeros());
         }
 
     }
@@ -224,8 +222,8 @@ public final class GeoJsonUtils {
      * @throws DbException
      *             on unsupported dimension system
      */
-    public static String ewkbToGeoJson(byte[] ewkb, int dimensionSystem) {
-        JSONStringTarget output = new JSONStringTarget();
+    public static byte[] ewkbToGeoJson(byte[] ewkb, int dimensionSystem) {
+        JSONByteArrayTarget output = new JSONByteArrayTarget();
         GeoJsonTarget target = new GeoJsonTarget(output, dimensionSystem);
         EWKBUtils.parseEWKB(ewkb, target);
         return output.getResult();
@@ -242,10 +240,8 @@ public final class GeoJsonUtils {
      * @throws DbException
      *             on unsupported dimension system
      */
-    public static byte[] geoJsonToEwkb(String json, int srid) {
-        JSONValueTarget t = new JSONValueTarget();
-        JSONStringSource.parse(json, t);
-        JSONValue v = t.getResult();
+    public static byte[] geoJsonToEwkb(byte[] json, int srid) {
+        JSONValue v = JSONBytesSource.parse(json, new JSONValueTarget());
         DimensionSystemTarget dst = new DimensionSystemTarget();
         parse(v, dst);
         ByteArrayOutputStream baos = new ByteArrayOutputStream();

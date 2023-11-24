@@ -1,6 +1,6 @@
 /*
- * Copyright 2004-2019 H2 Group. Multiple-Licensed under the MPL 2.0,
- * and the EPL 1.0 (http://h2database.com/html/license.html).
+ * Copyright 2004-2023 H2 Group. Multiple-Licensed under the MPL 2.0,
+ * and the EPL 1.0 (https://h2database.com/html/license.html).
  * Initial Developer: H2 Group
  */
 package org.h2.util.json;
@@ -11,7 +11,7 @@ import java.util.ArrayDeque;
 /**
  * JSON value target.
  */
-public final class JSONValueTarget extends JSONTarget {
+public final class JSONValueTarget extends JSONTarget<JSONValue> {
 
     private final ArrayDeque<JSONValue> stack;
 
@@ -135,13 +135,18 @@ public final class JSONValueTarget extends JSONTarget {
     }
 
     @Override
+    public boolean isPropertyExpected() {
+        return memberName == null && stack.peek() instanceof JSONObject;
+    }
+
+    @Override
     public boolean isValueSeparatorExpected() {
         return needSeparator;
     }
 
     @Override
     public JSONValue getResult() {
-        if (!stack.isEmpty() || memberName != null || result == null) {
+        if (!stack.isEmpty() || result == null) {
             throw new IllegalStateException();
         }
         return result;

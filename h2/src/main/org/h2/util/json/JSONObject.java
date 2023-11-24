@@ -1,6 +1,6 @@
 /*
- * Copyright 2004-2019 H2 Group. Multiple-Licensed under the MPL 2.0,
- * and the EPL 1.0 (http://h2database.com/html/license.html).
+ * Copyright 2004-2023 H2 Group. Multiple-Licensed under the MPL 2.0,
+ * and the EPL 1.0 (https://h2database.com/html/license.html).
  * Initial Developer: H2 Group
  */
 package org.h2.util.json;
@@ -12,19 +12,25 @@ import java.util.Map.Entry;
 /**
  * JSON object.
  */
-public class JSONObject extends JSONValue {
+public final class JSONObject extends JSONValue {
 
-    ArrayList<SimpleImmutableEntry<String, JSONValue>> members = new ArrayList<>();
+    private final ArrayList<SimpleImmutableEntry<String, JSONValue>> members = new ArrayList<>();
 
     JSONObject() {
     }
 
+    /**
+     * Add a key-value pair.
+     *
+     * @param name the key
+     * @param value the value
+     */
     void addMember(String name, JSONValue value) {
         members.add(new SimpleImmutableEntry<>(name, value));
     }
 
     @Override
-    public void addTo(JSONTarget target) {
+    public void addTo(JSONTarget<?> target) {
         target.startObject();
         for (SimpleImmutableEntry<String, JSONValue> member : members) {
             target.member(member.getKey());
